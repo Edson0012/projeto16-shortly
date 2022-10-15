@@ -1,32 +1,51 @@
 import { connection } from "../database/database.js";
-import bcrypt from 'bcrypt';
-import { v4 as uuid} from "uuid";
+import bcrypt, { hash } from 'bcrypt';
+import jwt from "jsonwebtoken";
 
 export async function signUp(req, res ){
-    const {name, email, password, confirmPassword} = req.body;
-    console.log(req.body);
+    const {name, email, password} = req.body;
     try{
 
-        console.log('oi')
-       if(password !== confirmPassword ){
-            return res.sendStatus(422)
-        } 
+        const { rows: userExist } = await connection.query(`SELECT * FROM users WHERE email LIKE $1;`, [email]);
 
-        const userExist = await connection.query(`SELECT * FROM users WHERE email LIKE $1`, [email]);
-
-        if(userExist.rows[0]){
+        if(userExist.length > 0){
             return res.sendStatus(409)
         } 
 
-        const passwordHash = bcrypt.hashSync(password, 10)
+        const salt = await bcrypt.genSalt();
 
-        await connection.query(`INSERT INTO users (name, email, password) VALUES ($1, $2, $3);`, [name, email, passwordHash]) 
+        const passwordHash = bcrypt.hashSync(password, salt);
+
+        await connection.query(`INSERT INTO users (name, email, password) VALUES ($1, $2, $3);`, [name, email, passwordHash]); 
 
         return res.sendStatus(201);
+
     }catch(err){
         return res.status(500).send('server error ')
     }
 };
 
-export async function signIn (req, res){};
+export async function signIn (req, res){
+    const user = req.body;
+
+    try{
+
+        if(user.email === '' || user.password === ''){
+            return res.sendStatus(422)
+        }
+
+        const { rows: userExist } = await connection.query(`SELECT * FROM users WHERE email LIKE $1;`, [user.email])
+
+        if(!bcrypt.compareSync(user.password, userExist[0].password)){
+            return res.sendStatus(401)
+        }
+
+        const token = jwt.sign(user, process.env.SECRET_KEY, {expiresIn: '7d'})
+
+        return res.status(200).send({name: userExist[0].name ,token})
+    }catch(err){
+        console.log(err);
+        return res.status(500).send('server error')
+    }
+};
 
