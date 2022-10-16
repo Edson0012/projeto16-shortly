@@ -40,7 +40,7 @@ export async function signIn (req, res){
             return res.sendStatus(401)
         }
 
-        const token = jwt.sign(user, process.env.SECRET_KEY, {expiresIn: '7d'})
+        const token = jwt.sign({id: userExist[0].id, email: user.email}, process.env.SECRET_KEY, {expiresIn: '7d'})
 
         return res.status(200).send({name: userExist[0].name ,token})
     }catch(err){
